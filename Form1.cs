@@ -1,5 +1,8 @@
 ﻿using RabbitMQ.Client;
+using RabbitMQ.Client.Events;
 using System;
+using System.Text;
+using System.Threading;
 using System.Windows.Forms;
 
 namespace RabbitMQTest
@@ -13,6 +16,7 @@ namespace RabbitMQTest
         {
             InitializeComponent();
             this.Input_Connection.Text = Properties.Settings.Default.RabbitMQUrl;
+            Form.CheckForIllegalCrossThreadCalls = false;
         }
 
         private void Form1_Load(object sender, EventArgs e)
@@ -102,6 +106,55 @@ namespace RabbitMQTest
             this.ChangeButtonStatus();
         }
 
+        private void Button_PublishMessage_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                this.Button_PublishMessage.Enabled = false;
+                var body = $"{ DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss") } : { this.Input_PublishMessage.Text }";
+                channel.BasicPublish(exchange: this.Input_PublishExchange.Text,
+                                     routingKey: this.Input_PublishRouteKey.Text,
+                                     basicProperties: null,
+                                     body: Encoding.UTF8.GetBytes(body));
+
+                this.Label_PublishSend.Text = $"Send -> { body }";
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message, "Exception");
+            }
+            finally
+            {
+                this.ChangeButtonStatus();
+            }
+        }
+
+        private void Button_SubscribeMessage_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                this.Button_SubscribeMessage.Enabled = false;
+                var consumer = new EventingBasicConsumer(channel);
+                consumer.Received += (model, ea) =>
+                {
+                    var body = ea.Body.ToArray();
+                    var message = Encoding.UTF8.GetString(body);
+                    this.Label_SubscribeResult.Text = $"Result -> { message }";
+                };
+                channel.BasicConsume(queue: this.Input_SubscribeQueue.Text,
+                                     autoAck: true,
+                                     consumer: consumer);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message, "Exception");
+            }
+            finally
+            {
+                this.ChangeButtonStatus();
+            }
+        }
+
         private void ChangeButtonStatus()
         {
             var isConn = this.connection != null;
@@ -117,6 +170,8 @@ namespace RabbitMQTest
                 this.Button_DeleteExchange.Enabled = false;
                 this.Button_CreateQueue.Enabled = false;
                 this.Button_DeleteQueue.Enabled = false;
+                this.Button_PublishMessage.Enabled = false;
+                this.Button_SubscribeMessage.Enabled = false;
             }
             else
             {
@@ -126,6 +181,8 @@ namespace RabbitMQTest
                 this.Button_DeleteExchange.Enabled = isChannel;
                 this.Button_CreateQueue.Enabled = isChannel;
                 this.Button_DeleteQueue.Enabled = isChannel;
+                this.Button_PublishMessage.Enabled = isChannel;
+                this.Button_SubscribeMessage.Enabled = isChannel;
             }
         }
     }
